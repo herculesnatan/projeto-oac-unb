@@ -1,0 +1,8 @@
+# ModelSim / Quartus / EDA files
+work/
+*.wlf
+*.mti
+*.mpf
+*.vstf
+transcript
+*.cr.mti
