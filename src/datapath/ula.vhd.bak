@@ -1,0 +1,59 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity ula is
+    Port (
+        A          : in  std_logic_vector(31 downto 0);
+        B          : in  std_logic_vector(31 downto 0);
+        Controle   : in  std_logic_vector(3 downto 0);
+        SaidaULA   : out std_logic_vector(31 downto 0);
+        Zero       : out std_logic
+    );
+end ula;
+
+architecture Comportamental of ula is
+begin
+    process(A, B, Controle)
+        -- Variável interna para facilitar o cálculo aritmético
+        variable resultado_temp : std_logic_vector(31 downto 0);
+    begin
+        case Controle is
+            when "0000" => -- AND / ANDI
+                resultado_temp := A and B;
+                
+            when "0001" => -- OR / ORi (Grupo Imm)
+                resultado_temp := A or B;
+                
+            when "0010" => -- ADD / ADDi / LW / SW / AUIPC
+                resultado_temp := std_logic_vector(signed(A) + signed(B));
+                
+            when "0110" => -- SUB / BEQ / BNE
+                resultado_temp := std_logic_vector(signed(A) - signed(B));
+                
+            when "0111" => -- SLT / SLTi
+                if signed(A) < signed(B) then
+                    resultado_temp := x"00000001";
+                else
+                    resultado_temp := x"00000000";
+                end if;
+                
+            when "0011" => -- XOR / XORI (Grupo Imm)
+                resultado_temp := A xor B;
+                
+            when others => 
+                resultado_temp := (others => '0');
+        end case;
+        
+        -- Atribui o resultado final à porta de saída
+        SaidaULA <= resultado_temp;
+        
+        -- A Flag Zero é crucial para o Controle saber se o desvio (BEQ/BNE) deve ocorrer
+        if resultado_temp = x"00000000" then
+            Zero <= '1';
+        else
+            Zero <= '0';
+        end if;
+        
+    end process;
+end Comportamental;
