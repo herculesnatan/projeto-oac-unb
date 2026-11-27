@@ -1,37 +1,90 @@
-architecture Comportamental of geracao_imediato is
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity ula is
+    Port (
+        A        : in  std_logic_vector(31 downto 0);
+        B        : in  std_logic_vector(31 downto 0);
+        Controle : in  std_logic_vector(3 downto 0);
+        SaidaULA : out std_logic_vector(31 downto 0);
+        Zero     : out std_logic;
+        Menor    : out std_logic; -- Para BLT / BGE (com sinal)
+        MenorU   : out std_logic  -- Para BLTU / BGEU (sem sinal)
+    );
+end ula;
+
+architecture Comportamental of ula is
 begin
-    process(instrucao)
-        -- Variável para ler os 7 bits finais e descobrir o tipo da instrução
-        variable opcode : std_logic_vector(6 downto 0);
+    process(A, B, Controle)
+        variable resultado_temp : std_logic_vector(31 downto 0);
+        variable shamt          : integer range 0 to 31;
     begin
-        opcode := instrucao(6 downto 0);
-        
-        case opcode is
-            -- Tipo I (LW, ADDi, ANDI, ORi, XORI, JALR)
-            when "0000011" | "0010011" | "1100111" =>
-                -- Pega os 12 bits mais significativos e estende o sinal para 32 bits
-                imediato <= std_logic_vector(resize(signed(instrucao(31 downto 20)), 32));
-                
-            -- Tipo S (SW)
-            when "0100011" =>
-                -- Junta os bits separados do imediato tipo S
-                imediato <= std_logic_vector(resize(signed(instrucao(31 downto 25) & instrucao(11 downto 7)), 32));
-                
-            -- Tipo B (BEQ, BNE, etc.)
-            when "1100011" =>
-                imediato <= std_logic_vector(resize(signed(instrucao(31) & instrucao(7) & instrucao(30 downto 25) & instrucao(11 downto 8)), 32));
-                
-            -- Tipo U (LUI, AUIPC)
-            when "0110111" | "0010111" =>
-                -- Imediato de 20 bits no topo, e preenche os 12 bits de baixo com zeros
-                imediato <= instrucao(31 downto 12) & x"000";
-                
-            -- Tipo J (JAL)
-            when "1101111" =>
-                imediato <= std_logic_vector(resize(signed(instrucao(31) & instrucao(19 downto 12) & instrucao(20) & instrucao(30 downto 21)), 32));
-                
+        -- Quantidade de deslocamento (5 bits menos significativos de B)
+        shamt := to_integer(unsigned(B(4 downto 0)));
+
+        case Controle is
+            when "0000" => -- AND / ANDI
+                resultado_temp := A and B;
+
+            when "0001" => -- OR / ORI
+                resultado_temp := A or B;
+
+            when "0010" => -- ADD / ADDI / LW / SW / AUIPC
+                resultado_temp := std_logic_vector(signed(A) + signed(B));
+
+            when "0011" => -- XOR / XORI
+                resultado_temp := A xor B;
+
+            when "0110" => -- SUB / Branches
+                resultado_temp := std_logic_vector(signed(A) - signed(B));
+
+            when "0111" => -- SLT / SLTI (com sinal)
+                if signed(A) < signed(B) then
+                    resultado_temp := x"00000001";
+                else
+                    resultado_temp := x"00000000";
+                end if;
+
+            when "1000" => -- SLTU / SLTIU (sem sinal)
+                if unsigned(A) < unsigned(B) then
+                    resultado_temp := x"00000001";
+                else
+                    resultado_temp := x"00000000";
+                end if;
+
+            when "1001" => -- SLL / SLLI (deslocamento lógico à esquerda)
+                resultado_temp := std_logic_vector(shift_left(unsigned(A), shamt));
+
+            when "1010" => -- SRL / SRLI (deslocamento lógico à direita)
+                resultado_temp := std_logic_vector(shift_right(unsigned(A), shamt));
+
+            when "1011" => -- SRA / SRAI (deslocamento aritmético à direita)
+                resultado_temp := std_logic_vector(shift_right(signed(A), shamt));
+
             when others =>
-                imediato <= (others => '0');
+                resultado_temp := (others => '0');
         end case;
+
+        SaidaULA <= resultado_temp;
+
+        -- Flags de comparação para todos os Branches
+        if resultado_temp = x"00000000" then
+            Zero <= '1';
+        else
+            Zero <= '0';
+        end if;
+
+        if signed(A) < signed(B) then
+            Menor <= '1';
+        else
+            Menor <= '0';
+        end if;
+
+        if unsigned(A) < unsigned(B) then
+            MenorU <= '1';
+        else
+            MenorU <= '0';
+        end if;
     end process;
 end Comportamental;
